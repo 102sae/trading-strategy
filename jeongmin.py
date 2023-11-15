@@ -1,4 +1,5 @@
 import sys
+import math
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 from PyQt5.QAxContainer import *
@@ -6,11 +7,19 @@ from PyQt5.QtWidgets import *
 import pandas as pd
 import GiExpertControl as giLogin
 import GiExpertControl as giTop50Show
-from pythonUI2 import Ui_MainWindow
+from pythonUI import Ui_MainWindow
+import datetime
 
 main_ui = Ui_MainWindow()
-
+top10 = []
 class indiWindow(QMainWindow):
+
+    def get_date(self):
+        today = datetime.date.today()
+        date_string = today.strftime("%Y%m%d")
+        return date_string
+
+
     # UI 선언
     def __init__(self):
         super().__init__()
@@ -18,12 +27,14 @@ class indiWindow(QMainWindow):
         giTop50Show.SetQtMode(True)
         giTop50Show.RunIndiPython()
         giLogin.RunIndiPython()
+        giTop50Show.RunIndiPython()
         self.rqidD = {}
         main_ui.setupUi(self)      
 
-        main_ui.pushButton.clicked.connect(self.pushButton_clicked)
+        main_ui.pushButton.clicked.connect(self.buy_stock)
+        main_ui.pushButton_2.clicked.connect(self.chegyeol_show)
         giTop50Show.SetCallBack('ReceiveData', self.giTop50Show_ReceiveData)
-
+        
         print(giLogin.GetCommState())
         if giLogin.GetCommState() == 0: # 정상
             print("")        
@@ -33,47 +44,111 @@ class indiWindow(QMainWindow):
             if login_return == True:
                 print("INDI 로그인 정보","INDI 정상 호출")
             else:
-                print("INDI 로그인 정보","INDI 호출 실패") 
+                print("INDI 로그인 정보","INDI 호출 실패")
 
+        #시작하자마자 TOP50 출력
         TR_Name = "TR_1505_07"  
         ret = giTop50Show.SetQueryName(TR_Name)   
         ret = giTop50Show.SetSingleData(0,"0")
         ret = giTop50Show.SetSingleData(1,"0")
         rqid = giTop50Show.RequestData()
         print(type(rqid))
+
         print('Request Data rqid: ' + str(rqid))
         self.rqidD[rqid] = TR_Name                  
 
-    def pushButton_clicked(self):
+    def buy_stock(self):
         gaejwa_text = main_ui.textEdit.toPlainText()
         PW_text = main_ui.textEdit_2.toPlainText()
-        money_text = main_ui.textEdit_3.toPlainText()
-        sueik_percent_text = main_ui.textEdit_4.toPlainText()
+        money_text =main_ui.textEdit_3.toPlainText()
 
-        TR_Name = "SABA101U1"          
-        ret = giTop50Show.SetQueryName(TR_Name)          
-        #print(giJongmokTRShow.GetErrorCode())
-        #print(giJongmokTRShow.GetErrorMessage())
-        ret = giTop50Show.SetSingleData(0,gaejwa_text)
-        ret = giTop50Show.SetSingleData(1,"01")
-        ret = giTop50Show.SetSingleData(2,PW_text)
-        rqid = giTop50Show.RequestData()
+        rates = [0.35,0.25,0.20,0.15,0.05]
+
+
+        for i in range(1,2):   
+            rate = float(rates[i-1])
+            jumun_suryang  = math.floor(rate * int(money_text) / int(top10[i-1]["price"]))
+            TR_Name = "SABA101U1"          
+            ret = giTop50Show.SetQueryName(TR_Name)  
+
+            ret = giTop50Show.SetSingleData(0,gaejwa_text)#계좌번호
+            ret = giTop50Show.SetSingleData(1,"01")#계좌 상품(항상01)
+            ret = giTop50Show.SetSingleData(2,PW_text)#계좌 비밀번호
+            ret = giTop50Show.SetSingleData(3,"")#계좌 관리부점코드
+            ret = giTop50Show.SetSingleData(4,"")#시장거래구분
+            ret = giTop50Show.SetSingleData(5,"0")#선물대용매도여부
+            ret = giTop50Show.SetSingleData(6,"00")#신용거래구분
+            ret = giTop50Show.SetSingleData(7,"2") #매도/매수 구분
+            ret = giTop50Show.SetSingleData(8,str(top10[i-1]["code"]))#종목코드
+            ret = giTop50Show.SetSingleData(9,str(jumun_suryang))#주문수량
+            ret = giTop50Show.SetSingleData(10,"")#주문가격
+            ret = giTop50Show.SetSingleData(11,"1")#정규시간외구분코드
+            ret = giTop50Show.SetSingleData(12,"1")#시장가
+            ret = giTop50Show.SetSingleData(13,"0")#주문조건코드
+            ret = giTop50Show.SetSingleData(14,"0")#신용대출통합주문구분코드
+            ret = giTop50Show.SetSingleData(15,"")#신용대출일자
+            ret = giTop50Show.SetSingleData(16,"")#원주문번호
+            ret = giTop50Show.SetSingleData(17,"") 
+            ret = giTop50Show.SetSingleData(18,"")
+            ret = giTop50Show.SetSingleData(19,"")
+            ret = giTop50Show.SetSingleData(20,"")#프로그램매매여부
+            ret = giTop50Show.SetSingleData(21,"Y")#결과메세지처리여부
+            try:
+                rqid = giTop50Show.RequestData()
+                print(type(rqid))
+                print('Request Data rqid: ' + str(rqid))
+                self.rqidD[rqid] = TR_Name
+            except Exception as e:
+                print(f"Error in RequestData: {e}")
+                rqid = None  # 또는 다른 초기값으로 설정
+
+            
         print(type(rqid))
         print('Request Data rqid: ' + str(rqid))
-        self.rqidD[rqid] = TR_Name    
+        self.rqidD[rqid] = TR_Name
+
+    #체결 내역 조회
+    def chegyeol_show(self):
+        TR_Name = "SABA231Q1"             
+        ret = giTop50Show.SetQueryName(TR_Name)
+        gaejwa_text = main_ui.textEdit.toPlainText()
+        PW_text = main_ui.textEdit_2.toPlainText()
+
+        ret = giTop50Show.SetSingleData(0,self.get_date()) #매매일자
+        ret = giTop50Show.SetSingleData(1,gaejwa_text) #계좌번호
+        ret = giTop50Show.SetSingleData(2,PW_text) #비밀번호
+        ret = giTop50Show.SetSingleData(3,"00") #장구분
+        ret = giTop50Show.SetSingleData(4,"0") #체결구분- 미체결/체결 구분없이 조회
+        ret = giTop50Show.SetSingleData(5,"1") #건별구분
+        ret = giTop50Show.SetSingleData(6,"*") #입력종목코드
+        ret = giTop50Show.SetSingleData(7,"") #계계좌상품코드
+        ret = giTop50Show.SetSingleData(8,"Y") #작업구분
+        try:
+            rqid = giTop50Show.RequestData()
+            print("++++++++++++++++++++++++++")
+            print(type(rqid))
+            print('Request Data rqid: ' + str(rqid))
+            self.rqidD[rqid] = TR_Name
+        except Exception as e:
+            print(f"Error in RequestData: {e}")
+            rqid = None
+    
 
 
     def giTop50Show_ReceiveData(self,giCtrl,rqid):
         print("in receive_Data:",rqid)
         print('recv rqid: {}->{}\n'.format(rqid, self.rqidD[rqid]))
+
         TR_Name = self.rqidD[rqid]
         tr_data_output = []
-        output = []
 
+        for i in range(0,10):
+            top10.append({"code": str(giCtrl.GetMultiData(i, 0)), "price" : str(giCtrl.GetMultiData(i, 2))})
+        
         print("TR_name : ",TR_Name)
+
         if TR_Name == "TR_1505_07":
             nCnt = giCtrl.GetMultiRowCount()
-            print("c")
             for i in range(0, nCnt):
                 tr_data_output.append([])
                 main_ui.tableWidget.setItem(i,0,QTableWidgetItem(str(giCtrl.GetMultiData(i, 0))))
@@ -87,7 +162,35 @@ class indiWindow(QMainWindow):
                 main_ui.tableWidget.setItem(i,8,QTableWidgetItem(str(giCtrl.GetMultiData(i, 8))))
                 for j in range(0,9):
                     tr_data_output[i].append(giCtrl.GetMultiData(i, j))
+                    
             print(type(tr_data_output))
+        #조회
+        elif TR_Name == "SABA231Q1":
+            nCnt = giCtrl.GetMultiRowCount()
+            print("++++++++++++++++++++++++++++++++------------+")
+            print(nCnt)
+            for i in range(nCnt):
+                tr_data_output.append([])
+                main_ui.tableWidget_2.setItem(i,0,QTableWidgetItem(str(giCtrl.GetMultiData(i, 0))))
+                main_ui.tableWidget_2.setItem(i,1,QTableWidgetItem(str(giCtrl.GetMultiData(i, 14))))
+                main_ui.tableWidget_2.setItem(i,2,QTableWidgetItem(str(giCtrl.GetMultiData(i, 15))))
+                main_ui.tableWidget_2.setItem(i,3,QTableWidgetItem(str(giCtrl.GetMultiData(i, 16))))
+                main_ui.tableWidget_2.setItem(i,4,QTableWidgetItem(str(giCtrl.GetMultiData(i, 24))))
+                main_ui.tableWidget_2.setItem(i,5,QTableWidgetItem(str(giCtrl.GetMultiData(i, 25))))
+                main_ui.tableWidget_2.setItem(i,6,QTableWidgetItem(str(giCtrl.GetMultiData(i, 26))))
+               
+        #매수
+        elif TR_Name == "SABA101U1":
+
+            try:
+                print("=========================")
+                print("주문번호" + giCtrl.GetMultiRowCount())
+            except Exception as e:
+                error_message = "에러 발생"
+                print(error_message)  
+
+                    
+
                        
         
 if __name__ == "__main__":
