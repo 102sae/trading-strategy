@@ -12,7 +12,6 @@ from pythonUI import Ui_MainWindow
 import time
 import datetime
 import telepot
-import schedule
 
 RTOCX1 = giJongmokRealTime.NewGiExpertModule()
 
@@ -29,6 +28,8 @@ id = 6389125198
 token = my_token
 bot = telepot.Bot(token)
 flag = "매수"
+check = "체결만"
+auto_sell = False
 
 class indiWindow(QMainWindow):
 
@@ -53,9 +54,13 @@ class indiWindow(QMainWindow):
         self.previous_chegyeol_data = []
 
         main_ui.pushButton.clicked.connect(self.buy_stock) #매수 주문 버튼
-        main_ui.pushButton_2.clicked.connect(self.chegyeol_show) #체결 내역 버튼
+        main_ui.pushButton_2.clicked.connect(self.chegyeol_show_all) #체결 내역 버튼
         main_ui.pushButton_3.clicked.connect(self.show_jango) #실시간 잔고 버튼
-        main_ui.pushButton_4.clicked.connect(self.sell_stock) # 매도 예약 버튼
+        main_ui.pushButton_4.clicked.connect(self.handle_auto_sell) # 매도 예약 버튼
+        main_ui.pushButton_5.clicked.connect(self.sell_stock) # 매도 주문 버튼
+        main_ui.tableWidget.itemClicked.connect(self.on_table_item_clicked)
+
+        self.auto_sell = False
 
         giTop50Show.SetCallBack('ReceiveData', self.giTop50Show_ReceiveData)
         RTOCX1.SetCallBack('ReceiveRTData', self.RTOCX1_ReceiveRTData)
@@ -71,7 +76,7 @@ class indiWindow(QMainWindow):
             else:
                 print("INDI 로그인 정보","INDI 호출 실패")
 
-        #시작하자마자 TOP50 출력
+        #시작하자마자 기관 TOP50 출력
         TR_Name = "TR_1505_07"  
         ret = giTop50Show.SetQueryName(TR_Name)   
         ret = giTop50Show.SetSingleData(0,"0")
@@ -84,14 +89,26 @@ class indiWindow(QMainWindow):
 
         # 주기적으로 체결 결과를 조회하는 스케쥴러 -> view_trade_history 함수를 호출하는 타이머 생성
         self.timer = QTimer(self)
-        self.timer.timeout.connect(self.chegyeol_show)
+        self.timer.timeout.connect(self.chegyeol_show_one)
         self.timer.start(10000)  # 60초(60,000 밀리초)마다 타이머 이벤트 발생
+        self.timer.timeout.connect(self.show_jango)
+        self.timer.start(10000)  # 60초(60,000 밀리초)마다 타이머 이벤트 발생
+
+    def on_table_item_clicked(self, item):
+        # 클릭한 셀의 행(row)과 열(column) 가져오기
+        row = item.row()
+        col = item.column()
+
+        # 테이블 셀의 텍스트 가져오기
+        cell_text = item.text()
+
+        if col == 0:
+            # textEdit_3에 클릭한 셀의 내용 표시
+            main_ui.textEdit_3.setText("A"+cell_text)
 
     #매수 주문
     def buy_stock(self):
         self.flag = "매수"
-        gaejwa_text = main_ui.textEdit.toPlainText()
-        PW_text = main_ui.textEdit_2.toPlainText()
         jongmok_code = main_ui.textEdit_3.toPlainText()
         jumun_suryang = main_ui.textEdit_4.toPlainText()
         # jongmok_code="A005930"
@@ -100,9 +117,9 @@ class indiWindow(QMainWindow):
         TR_Name = "SABA101U1"          
         ret= giTop50Show.SetQueryName(TR_Name)  
 
-        ret = giTop50Show.SetSingleData(0,gaejwa_text)#계좌번호
+        ret = giTop50Show.SetSingleData(0,"27051496084")#계좌번호
         ret = giTop50Show.SetSingleData(1,"01")#계좌 상품(항상01)
-        ret = giTop50Show.SetSingleData(2,PW_text)#계좌 비밀번호
+        ret = giTop50Show.SetSingleData(2,"0000")#계좌 비밀번호
         ret = giTop50Show.SetSingleData(3,"")#계좌 관리부점코드
         ret = giTop50Show.SetSingleData(4,"")#시장거래구분
         ret = giTop50Show.SetSingleData(5,"0")#선물대용매도여부
@@ -131,8 +148,9 @@ class indiWindow(QMainWindow):
         except Exception as e:
             print(e)
     
-    #체결 내역 조회
-    def chegyeol_show(self):
+    #체결 내역 조회(체결 미체결 모두)
+    def chegyeol_show_all(self):
+        self.check = "모두"
         TR_Name = "SABA231Q1"             
         ret = giTop50Show.SetQueryName(TR_Name)
         # gaejwa_text = main_ui.textEdit.toPlainText()
@@ -149,7 +167,31 @@ class indiWindow(QMainWindow):
         ret = giTop50Show.SetSingleData(8,"Y") #작업구분
         try:
             rqid = giTop50Show.RequestData()
-            print("+++++++++++체결 내역 조회+++++++++++++++")
+            print(type(rqid))
+            print('Request Data rqid: ' + str(rqid))
+            self.rqidD[rqid] = TR_Name
+        except Exception as e:
+            print(f"Error in RequestData: {e}")
+
+     #체결 내역 조회(체결만)
+    def chegyeol_show_one(self):
+        self.check = "체결만"
+        TR_Name = "SABA231Q1"             
+        ret = giTop50Show.SetQueryName(TR_Name)
+        # gaejwa_text = main_ui.textEdit.toPlainText()
+        # PW_text = main_ui.textEdit_2.toPlainText()
+
+        ret = giTop50Show.SetSingleData(0,self.get_date()) #매매일자
+        ret = giTop50Show.SetSingleData(1,"27051496084") #계좌번호
+        ret = giTop50Show.SetSingleData(2,"0000") #비밀번호
+        ret = giTop50Show.SetSingleData(3,"00") #장구분
+        ret = giTop50Show.SetSingleData(4,"1") #체결구분- 체결만
+        ret = giTop50Show.SetSingleData(5,"1") #건별구분
+        ret = giTop50Show.SetSingleData(6,"*") #입력종목코드
+        ret = giTop50Show.SetSingleData(7,"") #계계좌상품코드
+        ret = giTop50Show.SetSingleData(8,"Y") #작업구분
+        try:
+            rqid = giTop50Show.RequestData()
             print(type(rqid))
             print('Request Data rqid: ' + str(rqid))
             self.rqidD[rqid] = TR_Name
@@ -163,6 +205,7 @@ class indiWindow(QMainWindow):
         print(type(rqid))
         print('Request Data rqid: ' + str(rqid))
 
+    #잔고 조회
     def show_jango(self):
         TR_Name = "SABA609Q1"             
         ret = giTop50Show.SetQueryName(TR_Name)
@@ -184,14 +227,12 @@ class indiWindow(QMainWindow):
             self.rqidD[rqid] = TR_Name
         except Exception as e:
             print(f"Error in RequestData: {e}")
-     
 
-    #자동 매도 신청
+    #매도 신청
     def sell_stock(self):
         self.flag = "매도"
-        print(self.flag)
-        gaejwa_text = main_ui.textEdit.toPlainText()
-        PW_text = main_ui.textEdit_2.toPlainText()
+        jongmok_code = main_ui.textEdit_8.toPlainText()
+        jumun_suryang = main_ui.textEdit_9.toPlainText()
 
         TR_Name = "SABA101U1"      
         ret= giTop50Show.SetQueryName(TR_Name)  
@@ -203,8 +244,8 @@ class indiWindow(QMainWindow):
         ret = giTop50Show.SetSingleData(5,"0")#선물대용매도여부
         ret = giTop50Show.SetSingleData(6,"00")#신용거래구분
         ret = giTop50Show.SetSingleData(7,"1") #매도/매수 구분
-        ret = giTop50Show.SetSingleData(8,"A005930")#종목코드
-        ret = giTop50Show.SetSingleData(9,"5")#주문수량
+        ret = giTop50Show.SetSingleData(8,jongmok_code)#종목코드
+        ret = giTop50Show.SetSingleData(9,jumun_suryang)#주문수량
         ret = giTop50Show.SetSingleData(10,"")#주문가격
         ret = giTop50Show.SetSingleData(11,"1")#정규시간외구분코드
         ret = giTop50Show.SetSingleData(12,"1")#시장가
@@ -231,16 +272,59 @@ class indiWindow(QMainWindow):
         print('Request Data rqid: ' + str(rqid))
         self.rqidD[rqid] = TR_Name
 
-    # def RTOCX1_ReceiveRTData(self,giCtrl,RealType):
-    #     if RealType == "AD":
-    #         main_ui.tableWidget_3.insertRow(main_ui.tableWidget_3.rowCount())
-    #         final_rowCount = main_ui.tableWidget_3.rowCount() - 1
-    #         main_ui.tableWidget_3.setItem(final_rowCount,0,QTableWidgetItem(str(giCtrl.GetSingleData(2))))#종목코드
-    #         main_ui.tableWidget_3.setItem(final_rowCount,1,QTableWidgetItem(str(giCtrl.GetSingleData(3))))#종목명
-    #         main_ui.tableWidget_3.setItem(final_rowCount,2,QTableWidgetItem(str(giCtrl.GetSingleData(6))))#잔고수량
-    #         main_ui.tableWidget_3.setItem(final_rowCount,3,QTableWidgetItem(str(giCtrl.GetSingleData(7))))#평균단가
-    #         main_ui.tableWidget_3.setItem(final_rowCount,4,QTableWidgetItem(str(giCtrl.GetSingleData(17))))#현재가
-    #         main_ui.tableWidget_3.setItem(final_rowCount,5,QTableWidgetItem(str(giCtrl.GetSingleData(13))))#손익률
+    def handle_auto_sell(self):
+        self.auto_sell = True
+        jongmok_code = main_ui.textEdit_10.toPlainText()
+         #매수 팝업
+        QMessageBox.information(self,jongmok_code +'예약 매도',"매도 예약이 신청되었습니다.")
+        #매수 텔레그렘 메세지
+        bot.sendMessage(id,jongmok_code + "매도 예약이 신청되었습니다. ")
+
+    #예약 매도 신청
+    def sell_stock_auto(self):
+        self.flag = "매도"
+        self.auto_sell == False
+        jongmok_code = main_ui.textEdit_10.toPlainText()
+        jumun_suryang = main_ui.textEdit_11.toPlainText()
+
+        TR_Name = "SABA101U1"      
+        ret= giTop50Show.SetQueryName(TR_Name)  
+        ret = giTop50Show.SetSingleData(1,"01")#계좌 상품(항상01)
+        ret = giTop50Show.SetSingleData(2,"0000")#계좌 비밀번호
+        ret = giTop50Show.SetSingleData(0,"27051496084")#계좌번호
+        ret = giTop50Show.SetSingleData(3,"")#계좌 관리부점코드
+        ret = giTop50Show.SetSingleData(4,"")#시장거래구분
+        ret = giTop50Show.SetSingleData(5,"0")#선물대용매도여부
+        ret = giTop50Show.SetSingleData(6,"00")#신용거래구분
+        ret = giTop50Show.SetSingleData(7,"1") #매도/매수 구분
+        ret = giTop50Show.SetSingleData(8,jongmok_code)#종목코드
+        ret = giTop50Show.SetSingleData(9,jumun_suryang)#주문수량
+        ret = giTop50Show.SetSingleData(10,"")#주문가격
+        ret = giTop50Show.SetSingleData(11,"1")#정규시간외구분코드
+        ret = giTop50Show.SetSingleData(12,"1")#시장가
+        ret = giTop50Show.SetSingleData(13,"0")#주문조건코드
+        ret = giTop50Show.SetSingleData(14,"0")#신용대출통합주문구분코드
+        ret = giTop50Show.SetSingleData(15,"")#신용대출일자
+        ret = giTop50Show.SetSingleData(16,"")#원주문번호
+        ret = giTop50Show.SetSingleData(17,"") 
+        ret = giTop50Show.SetSingleData(18,"")
+        ret = giTop50Show.SetSingleData(19,"")
+        ret = giTop50Show.SetSingleData(20,"")#프로그램매매여부
+        ret = giTop50Show.SetSingleData(21,"Y")#결과메세지처리여부
+        
+        try:
+            rqid = giTop50Show.RequestData()
+            print(type(rqid))
+            print('Request Data rqid: ' + str(rqid))
+            self.rqidD[rqid] = TR_Name
+        except Exception as e:
+            print(f"Error in RequestData: {e}")
+            rqid = None  # 또는 다른 초기값으로 설정
+    
+        print(type(rqid))
+        print('Request Data rqid: ' + str(rqid))
+        self.rqidD[rqid] = TR_Name
+
 
     def RTOCX1_ReceiveRTData(self, giCtrl, RealType):
         if RealType == "AA":
@@ -262,8 +346,6 @@ class indiWindow(QMainWindow):
             main_ui.tableWidget_3.setItem(final_rowCount, 3, QTableWidgetItem(str(avg_price)))  # 평균단가
             main_ui.tableWidget_3.setItem(final_rowCount, 4, QTableWidgetItem(str(now_price)))  # 현재가
             main_ui.tableWidget_3.setItem(final_rowCount, 5, QTableWidgetItem(str(profit)))  # 손익률
-
-
         elif RealType == "AD":
             print(giCtrl.GetSingleData(6))
 
@@ -296,51 +378,72 @@ class indiWindow(QMainWindow):
         #체결 조회
         elif TR_Name == "SABA231Q1":
             nCnt = giCtrl.GetMultiRowCount()
-            current_chegyeol_data = []
-            print("++++++++++++++++++++++++++++++++")
-            print(nCnt)
-
-            
-            for i in range(nCnt):
-                current_chegyeol_data.append([
-                   str(giCtrl.GetMultiData(i, 0)),
-                   str(giCtrl.GetMultiData(i, 14)),
-                   str(giCtrl.GetMultiData(i, 15)),
-                   str(giCtrl.GetMultiData(i, 30)),
-                   str(giCtrl.GetMultiData(i, 24)),
-                   str(giCtrl.GetMultiData(i, 25)),
-                   str(giCtrl.GetMultiData(i, 26)),
-                ])
-                main_ui.tableWidget_2.setItem(i,0,QTableWidgetItem(str(giCtrl.GetMultiData(i, 0)))) #주문번호
-                main_ui.tableWidget_2.setItem(i,1,QTableWidgetItem(str(giCtrl.GetMultiData(i, 14))))#종목명
-                main_ui.tableWidget_2.setItem(i,2,QTableWidgetItem(str(giCtrl.GetMultiData(i, 15))))#주문수량
-                main_ui.tableWidget_2.setItem(i,3,QTableWidgetItem(str(giCtrl.GetMultiData(i, 30))))#주문단가
-                main_ui.tableWidget_2.setItem(i,4,QTableWidgetItem(str(giCtrl.GetMultiData(i, 24))))#체결수량
-                main_ui.tableWidget_2.setItem(i,5,QTableWidgetItem(str(giCtrl.GetMultiData(i, 25))))#체결단가
-                main_ui.tableWidget_2.setItem(i,6,QTableWidgetItem(str(giCtrl.GetMultiData(i, 26))))#미체결수량
-               
-                 
-            # 이전에 조회한 데이터와 현재 조회한 데이터 비교
-             # 이전에 조회한 데이터와 현재 조회한 데이터 비교
-            differences = [i for i, (prev, current) in enumerate(zip(self.previous_chegyeol_data, current_chegyeol_data), start=1) if prev != current]
-            if differences:
-                print("새로운 체결 내역이 있습니다. 차이가 있는 항목:")
-                try:
-                    raw_time = giCtrl.GetMultiData(differences[0], 22)
-                    structured_time = time.strptime(raw_time, "%H%M%S")
-                    formatted_time = time.strftime("%H:%M:%S", structured_time)
-                    send_message = formatted_time + "분에 " + str(giCtrl.GetMultiData(differences[0], 0)) + str(giCtrl.GetMultiData(differences[0],4 ))+ "개 체결됐습니다."
-                    print(send_message)
-                    bot.sendMessage(id,send_message)
-                except :
-                    print("매수")
+            if self.check == "체결만":
+                current_chegyeol_data = []
+                print("++++++++++++++체결만+++++++++++++++++")
+                
+                for i in range(nCnt):
+                    current_chegyeol_data.append([
+                    str(giCtrl.GetMultiData(i, 0)),
+                    str(giCtrl.GetMultiData(i, 14)),
+                    str(giCtrl.GetMultiData(i, 15)),
+                    str(giCtrl.GetMultiData(i, 30)),
+                    str(giCtrl.GetMultiData(i, 24)),
+                    str(giCtrl.GetMultiData(i, 25)),
+                    str(giCtrl.GetMultiData(i, 26)),
+                    ])
+                    
+                # 이전에 조회한 데이터와 현재 조회한 데이터 비교
+                differences = [i for i, (prev, current) in enumerate(zip(self.previous_chegyeol_data, current_chegyeol_data), start=1) if prev != current]
+                if differences:
+                    print("새로운 체결 내역이 있습니다")
+                    try:
+                        raw_time = giCtrl.GetMultiData(differences[0], 22)
+                        structured_time = time.strptime(raw_time, "%H%M%S")
+                        formatted_time = time.strftime("%H:%M:%S", structured_time)
+                        send_message = formatted_time + "분에 " + str(giCtrl.GetMultiData(differences[0], 0)) +"가 체결됐습니다."
+                        print(send_message)
+                        bot.sendMessage(id,send_message)
+                    except :
+                        print("error")
+                self.previous_chegyeol_data = current_chegyeol_data   
+            else:
+                print("++++++++++++++체결만+++++++++++++++++")
+                for i in range(nCnt):
+                    main_ui.tableWidget_2.setItem(i,0,QTableWidgetItem(str(giCtrl.GetMultiData(i, 0)))) #주문번호
+                    main_ui.tableWidget_2.setItem(i,1,QTableWidgetItem(str(giCtrl.GetMultiData(i, 14))))#종목명
+                    main_ui.tableWidget_2.setItem(i,2,QTableWidgetItem(str(giCtrl.GetMultiData(i, 15))))#주문수량
+                    main_ui.tableWidget_2.setItem(i,3,QTableWidgetItem(str(giCtrl.GetMultiData(i, 30))))#주문단가
+                    main_ui.tableWidget_2.setItem(i,4,QTableWidgetItem(str(giCtrl.GetMultiData(i, 24))))#체결수량
+                    main_ui.tableWidget_2.setItem(i,5,QTableWidgetItem(str(giCtrl.GetMultiData(i, 25))))#체결단가
+                    main_ui.tableWidget_2.setItem(i,6,QTableWidgetItem(str(giCtrl.GetMultiData(i, 26))))#미체결수량
                 
 
-            self.previous_chegyeol_data = current_chegyeol_data   
-            
 
+        #잔고 조회 
+        elif TR_Name == "SABA609Q1":
+            nCnt = giCtrl.GetMultiRowCount()
+            print("+++++++++잔고조회+++++++++++")
+            profit = main_ui.textEdit_6.toPlainText()
+            jongmok_code = main_ui.textEdit_10.toPlainText()
+            print(profit)
+            for i in range(0, nCnt):
+                #예약 매도를 했다면
+                print(self.auto_sell)
+                if self.auto_sell:
+                    if(str(giCtrl.GetMultiData(i, 0))==jongmok_code and float(giCtrl.GetMultiData(i, 20))>=float(profit) ):
+                        self.auto_sell =False
+                        self.sell_stock_auto()
                 
-        #매수
+                main_ui.tableWidget_3.setItem(i,0,QTableWidgetItem(str(giCtrl.GetMultiData(i, 0)))) #종목코드
+                main_ui.tableWidget_3.setItem(i,1,QTableWidgetItem(str(giCtrl.GetMultiData(i, 1)))) #종목명
+                main_ui.tableWidget_3.setItem(i,2,QTableWidgetItem(str(giCtrl.GetMultiData(i, 4)))) #잔고수량
+                main_ui.tableWidget_3.setItem(i,3,QTableWidgetItem(str(giCtrl.GetMultiData(i, 12)))) #평균단가
+                main_ui.tableWidget_3.setItem(i,4,QTableWidgetItem(str(giCtrl.GetMultiData(i, 13)))) #현재가
+                main_ui.tableWidget_3.setItem(i,3,QTableWidgetItem(str(giCtrl.GetMultiData(i, 18)))) #평가금액
+                main_ui.tableWidget_3.setItem(i,4,QTableWidgetItem(str(giCtrl.GetMultiData(i, 20)))) #손익률
+
+        #매수 & 매도
         elif TR_Name == "SABA101U1" :
             if self.flag == "매수":
                 try:
@@ -366,26 +469,7 @@ class indiWindow(QMainWindow):
                     bot.sendMessage(id,sell_text)
                 except Exception as e:
                     print(e)
-
-
-        elif TR_Name == "SABA609Q1":
-            try: 
-                print("===========잔고 response==============")
-                count = giCtrl.GetMultiRowCount()
-                for i in range(count):
-                    print(giCtrl.GetMultiData(i,0))
-                    print(giCtrl.GetMultiData(i,20))
-                #매수 팝업
-                # QMessageBox.information(self,'매수 주문',buy_text)
-                # #매수 텔레그렘 메세지
-                # bot.sendMessage(id,buy_text)
-            except Exception as e:
-                print(e)
-
-
-                    
-
-                       
+                  
         
 if __name__ == "__main__":
     app = QApplication(sys.argv)
