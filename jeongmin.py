@@ -61,7 +61,6 @@ class indiWindow(QMainWindow):
         main_ui.tableWidget.itemClicked.connect(self.on_table_item_clicked)
 
         self.auto_sell = False
-        #self.show_silsigan_jango()
 
         giTop50Show.SetCallBack('ReceiveData', self.giTop50Show_ReceiveData)
         RTOCX1.SetCallBack('ReceiveRTData', self.RTOCX1_ReceiveRTData)
@@ -77,11 +76,11 @@ class indiWindow(QMainWindow):
             else:
                 print("INDI 로그인 정보","INDI 호출 실패")
 
-        #시작하자마자 기관 TOP50 출력
-        TR_Name = "TR_1505_07"  
+        #시작하자마자 장중 매매현황 출력
+        TR_Name = "TR_INDI004"  
         ret = giTop50Show.SetQueryName(TR_Name)   
-        ret = giTop50Show.SetSingleData(0,"0")
-        ret = giTop50Show.SetSingleData(1,"0")
+        ret = giTop50Show.SetSingleData(0,"2")
+        ret = giTop50Show.SetSingleData(1,"10") #기관 순매수
         rqid = giTop50Show.RequestData()
         print(type(rqid))
 
@@ -277,7 +276,7 @@ class indiWindow(QMainWindow):
         self.auto_sell = True
         jongmok_code = main_ui.textEdit_10.toPlainText()
          #매도 팝업
-        QMessageBox.information(self,jongmok_code +'예약 매도' + "매도 예약이 신청되었습니다.")
+        QMessageBox.information(self,"매도예약" ,jongmok_code+" 매도 예약이 신청되었습니다.")
         #매도 텔레그렘 메세지
         bot.sendMessage(id,jongmok_code + " 매도 예약이 신청되었습니다. ")
 
@@ -359,18 +358,18 @@ class indiWindow(QMainWindow):
         
         print("TR_name : ",TR_Name)
 
-        if TR_Name == "TR_1505_07":
+        if TR_Name == "TR_INDI004":
             nCnt = giCtrl.GetMultiRowCount()
             for i in range(0, nCnt):
                 tr_data_output.append([])
-                main_ui.tableWidget.setItem(i,0,QTableWidgetItem(str(giCtrl.GetMultiData(i, 0))))
-                main_ui.tableWidget.setItem(i,1,QTableWidgetItem(str(giCtrl.GetMultiData(i, 1))))
-                main_ui.tableWidget.setItem(i,2,QTableWidgetItem(str(giCtrl.GetMultiData(i, 2))))
-                main_ui.tableWidget.setItem(i,3,QTableWidgetItem(str(giCtrl.GetMultiData(i, 4))))
-                main_ui.tableWidget.setItem(i,4,QTableWidgetItem(str(giCtrl.GetMultiData(i, 5))))
-                main_ui.tableWidget.setItem(i,5,QTableWidgetItem(str(giCtrl.GetMultiData(i, 6))))
-                main_ui.tableWidget.setItem(i,6,QTableWidgetItem(str(giCtrl.GetMultiData(i, 7))))
-                main_ui.tableWidget.setItem(i,7,QTableWidgetItem(str(giCtrl.GetMultiData(i, 8))))
+                main_ui.tableWidget.setItem(i,0,QTableWidgetItem(str(giCtrl.GetMultiData(i, 0))))#단축코드
+                main_ui.tableWidget.setItem(i,1,QTableWidgetItem(str(giCtrl.GetMultiData(i, 1))))#종목명
+                main_ui.tableWidget.setItem(i,2,QTableWidgetItem(str(giCtrl.GetMultiData(i, 2))))#현재가
+                main_ui.tableWidget.setItem(i,3,QTableWidgetItem(str(giCtrl.GetMultiData(i, 4))))#전일대비
+                main_ui.tableWidget.setItem(i,4,QTableWidgetItem(str(giCtrl.GetMultiData(i, 5))))#누적거래량
+                main_ui.tableWidget.setItem(i,5,QTableWidgetItem(str(giCtrl.GetMultiData(i, 30))))#기관계매수
+                main_ui.tableWidget.setItem(i,6,QTableWidgetItem(str(giCtrl.GetMultiData(i, 31))))#기관계매도
+                main_ui.tableWidget.setItem(i,7,QTableWidgetItem(str(giCtrl.GetMultiData(i, 32))))#기관계순매수
                 for j in range(0,9):
                     tr_data_output[i].append(giCtrl.GetMultiData(i, j))
                     
@@ -412,13 +411,9 @@ class indiWindow(QMainWindow):
 
                 for i in range(nCnt):
                     sell_buy = "매수"
-                    self.tableWidget.setItem(i, 5, QTableWidgetItem('▲'))
-                    self.tableWidget.item(i, 5).setForeground(QtGui.QColor(255,0,0))
                     if giCtrl.GetMultiData(i, 4) == "1":
                       sell_buy = "매도"
-                      item.setForeground(QColor(0, 0, 255))  # RGB value for blue
-                      
-
+                    
                     main_ui.tableWidget_2.setItem(i,0,QTableWidgetItem(str(giCtrl.GetMultiData(i, 0)))) #주문번호
                     main_ui.tableWidget_2.setItem(i,1,QTableWidgetItem(str(giCtrl.GetMultiData(i, 14))))#종목명
                     main_ui.tableWidget_2.setItem(i,2,QTableWidgetItem(str(giCtrl.GetMultiData(i, 15))))#주문수량
@@ -426,7 +421,7 @@ class indiWindow(QMainWindow):
                     main_ui.tableWidget_2.setItem(i,4,QTableWidgetItem(str(giCtrl.GetMultiData(i, 24))))#체결수량
                     main_ui.tableWidget_2.setItem(i,5,QTableWidgetItem(str(giCtrl.GetMultiData(i, 25))))#체결단가
                     main_ui.tableWidget_2.setItem(i,6,QTableWidgetItem(str(giCtrl.GetMultiData(i, 26))))#미체결수량
-                
+
 
 
         #잔고 조회 
