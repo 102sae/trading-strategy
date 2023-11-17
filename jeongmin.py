@@ -61,6 +61,7 @@ class indiWindow(QMainWindow):
         main_ui.tableWidget.itemClicked.connect(self.on_table_item_clicked)
 
         self.auto_sell = False
+        #self.show_silsigan_jango()
 
         giTop50Show.SetCallBack('ReceiveData', self.giTop50Show_ReceiveData)
         RTOCX1.SetCallBack('ReceiveRTData', self.RTOCX1_ReceiveRTData)
@@ -275,10 +276,10 @@ class indiWindow(QMainWindow):
     def handle_auto_sell(self):
         self.auto_sell = True
         jongmok_code = main_ui.textEdit_10.toPlainText()
-         #매수 팝업
-        QMessageBox.information(self,jongmok_code +'예약 매도',"매도 예약이 신청되었습니다.")
-        #매수 텔레그렘 메세지
-        bot.sendMessage(id,jongmok_code + "매도 예약이 신청되었습니다. ")
+         #매도 팝업
+        QMessageBox.information(self,jongmok_code +'예약 매도' + "매도 예약이 신청되었습니다.")
+        #매도 텔레그렘 메세지
+        bot.sendMessage(id,jongmok_code + " 매도 예약이 신청되었습니다. ")
 
     #예약 매도 신청
     def sell_stock_auto(self):
@@ -365,12 +366,11 @@ class indiWindow(QMainWindow):
                 main_ui.tableWidget.setItem(i,0,QTableWidgetItem(str(giCtrl.GetMultiData(i, 0))))
                 main_ui.tableWidget.setItem(i,1,QTableWidgetItem(str(giCtrl.GetMultiData(i, 1))))
                 main_ui.tableWidget.setItem(i,2,QTableWidgetItem(str(giCtrl.GetMultiData(i, 2))))
-                main_ui.tableWidget.setItem(i,3,QTableWidgetItem(str(giCtrl.GetMultiData(i, 3))))
-                main_ui.tableWidget.setItem(i,4,QTableWidgetItem(str(giCtrl.GetMultiData(i, 4))))
-                main_ui.tableWidget.setItem(i,5,QTableWidgetItem(str(giCtrl.GetMultiData(i, 5))))
-                main_ui.tableWidget.setItem(i,6,QTableWidgetItem(str(giCtrl.GetMultiData(i, 6))))
-                main_ui.tableWidget.setItem(i,7,QTableWidgetItem(str(giCtrl.GetMultiData(i, 7))))
-                main_ui.tableWidget.setItem(i,8,QTableWidgetItem(str(giCtrl.GetMultiData(i, 8))))
+                main_ui.tableWidget.setItem(i,3,QTableWidgetItem(str(giCtrl.GetMultiData(i, 4))))
+                main_ui.tableWidget.setItem(i,4,QTableWidgetItem(str(giCtrl.GetMultiData(i, 5))))
+                main_ui.tableWidget.setItem(i,5,QTableWidgetItem(str(giCtrl.GetMultiData(i, 6))))
+                main_ui.tableWidget.setItem(i,6,QTableWidgetItem(str(giCtrl.GetMultiData(i, 7))))
+                main_ui.tableWidget.setItem(i,7,QTableWidgetItem(str(giCtrl.GetMultiData(i, 8))))
                 for j in range(0,9):
                     tr_data_output[i].append(giCtrl.GetMultiData(i, j))
                     
@@ -408,12 +408,21 @@ class indiWindow(QMainWindow):
                         print("error")
                 self.previous_chegyeol_data = current_chegyeol_data   
             else:
-                print("++++++++++++++체결만+++++++++++++++++")
+                print("++++++++++++++체결미체결+++++++++++++++++")
+
                 for i in range(nCnt):
+                    sell_buy = "매수"
+                    self.tableWidget.setItem(i, 5, QTableWidgetItem('▲'))
+                    self.tableWidget.item(i, 5).setForeground(QtGui.QColor(255,0,0))
+                    if giCtrl.GetMultiData(i, 4) == "1":
+                      sell_buy = "매도"
+                      item.setForeground(QColor(0, 0, 255))  # RGB value for blue
+                      
+
                     main_ui.tableWidget_2.setItem(i,0,QTableWidgetItem(str(giCtrl.GetMultiData(i, 0)))) #주문번호
                     main_ui.tableWidget_2.setItem(i,1,QTableWidgetItem(str(giCtrl.GetMultiData(i, 14))))#종목명
                     main_ui.tableWidget_2.setItem(i,2,QTableWidgetItem(str(giCtrl.GetMultiData(i, 15))))#주문수량
-                    main_ui.tableWidget_2.setItem(i,3,QTableWidgetItem(str(giCtrl.GetMultiData(i, 30))))#주문단가
+                    main_ui.tableWidget_2.setItem(i,3,QTableWidgetItem(sell_buy))#매수매도 구분
                     main_ui.tableWidget_2.setItem(i,4,QTableWidgetItem(str(giCtrl.GetMultiData(i, 24))))#체결수량
                     main_ui.tableWidget_2.setItem(i,5,QTableWidgetItem(str(giCtrl.GetMultiData(i, 25))))#체결단가
                     main_ui.tableWidget_2.setItem(i,6,QTableWidgetItem(str(giCtrl.GetMultiData(i, 26))))#미체결수량
@@ -424,14 +433,16 @@ class indiWindow(QMainWindow):
         elif TR_Name == "SABA609Q1":
             nCnt = giCtrl.GetMultiRowCount()
             print("+++++++++잔고조회+++++++++++")
-            profit = main_ui.textEdit_6.toPlainText()
+            plus = main_ui.textEdit_7.toPlainText()
+            minus = main_ui.textEdit_6.toPlainText()
+            
             jongmok_code = main_ui.textEdit_10.toPlainText()
-            print(profit)
+            print(plus,minus)
             for i in range(0, nCnt):
                 #예약 매도를 했다면
-                print(self.auto_sell)
+                #print(self.auto_sell)
                 if self.auto_sell:
-                    if(str(giCtrl.GetMultiData(i, 0))==jongmok_code and float(giCtrl.GetMultiData(i, 20))>=float(profit) ):
+                    if(str(giCtrl.GetMultiData(i, 0))==jongmok_code and( float(giCtrl.GetMultiData(i, 20))>=float(plus) or float(giCtrl.GetMultiData(i, 20))<=float(minus))):
                         self.auto_sell =False
                         self.sell_stock_auto()
                 
@@ -440,8 +451,7 @@ class indiWindow(QMainWindow):
                 main_ui.tableWidget_3.setItem(i,2,QTableWidgetItem(str(giCtrl.GetMultiData(i, 4)))) #잔고수량
                 main_ui.tableWidget_3.setItem(i,3,QTableWidgetItem(str(giCtrl.GetMultiData(i, 12)))) #평균단가
                 main_ui.tableWidget_3.setItem(i,4,QTableWidgetItem(str(giCtrl.GetMultiData(i, 13)))) #현재가
-                main_ui.tableWidget_3.setItem(i,3,QTableWidgetItem(str(giCtrl.GetMultiData(i, 18)))) #평가금액
-                main_ui.tableWidget_3.setItem(i,4,QTableWidgetItem(str(giCtrl.GetMultiData(i, 20)))) #손익률
+                main_ui.tableWidget_3.setItem(i,5,QTableWidgetItem(str(giCtrl.GetMultiData(i, 20)))) #손익률
 
         #매수 & 매도
         elif TR_Name == "SABA101U1" :
@@ -476,4 +486,5 @@ if __name__ == "__main__":
     IndiWindow = indiWindow()    
     IndiWindow.show()
     app.exec_()
+    
     
