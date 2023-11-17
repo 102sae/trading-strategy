@@ -603,7 +603,7 @@ class Ui_MainWindow(object):
         item.setText(_translate("MainWindow", "손익률"))
         self.label_7.setText(_translate("MainWindow", "예약 매도"))
         self.label_8.setText(_translate("MainWindow", "매수"))
-        self.label_11.setText(_translate("MainWindow", "손절 수익률"))
+        self.label_11.setText(_translate("MainWindow", "손실 제한률"))
         self.pushButton_4.setText(_translate("MainWindow", "매도 예약"))
         self.label_12.setText(_translate("MainWindow", "수량"))
         self.label_13.setText(_translate("MainWindow", "가격(시장가로 매도됩니다.)"))

@@ -59,6 +59,7 @@ class indiWindow(QMainWindow):
         main_ui.pushButton_4.clicked.connect(self.handle_auto_sell) # 매도 예약 버튼
         main_ui.pushButton_5.clicked.connect(self.sell_stock) # 매도 주문 버튼
         main_ui.tableWidget.itemClicked.connect(self.on_table_item_clicked)
+        main_ui.tableWidget_3.itemClicked.connect(self.on_table_item_clicked2)
 
         self.auto_sell = False
 
@@ -106,6 +107,18 @@ class indiWindow(QMainWindow):
             # textEdit_3에 클릭한 셀의 내용 표시
             main_ui.textEdit_3.setText("A"+cell_text)
 
+    def on_table_item_clicked2(self, item):
+        # 클릭한 셀의 행(row)과 열(column) 가져오기
+        row = item.row()
+        col = item.column()
+
+        # 테이블 셀의 텍스트 가져오기
+        cell_text = item.text()
+
+        if col == 0:
+            # textEdit_3에 클릭한 셀의 내용 표시
+            main_ui.textEdit_8.setText(cell_text)
+
     #매수 주문
     def buy_stock(self):
         self.flag = "매수"
@@ -116,6 +129,13 @@ class indiWindow(QMainWindow):
         # price=""
         TR_Name = "SABA101U1"          
         ret= giTop50Show.SetQueryName(TR_Name)  
+
+        if jongmok_code == "":
+           QMessageBox.information(self,"필수 항목 부족" ,"종목 코드를 입력해주세요.")
+           return
+        if jumun_suryang == "":
+           QMessageBox.information(self,"필수 항목 부족" ,"주문 수량을 입력해주세요.")
+           return
 
         ret = giTop50Show.SetSingleData(0,"27051496084")#계좌번호
         ret = giTop50Show.SetSingleData(1,"01")#계좌 상품(항상01)
@@ -234,6 +254,13 @@ class indiWindow(QMainWindow):
         jongmok_code = main_ui.textEdit_8.toPlainText()
         jumun_suryang = main_ui.textEdit_9.toPlainText()
 
+        if jongmok_code == "":
+           QMessageBox.information(self,"필수 항목 부족" ,"종목 코드를 입력해주세요.")
+           return
+        if jumun_suryang == "":
+           QMessageBox.information(self,"필수 항목 부족" ,"주문 수량을 입력해주세요.")
+           return
+
         TR_Name = "SABA101U1"      
         ret= giTop50Show.SetQueryName(TR_Name)  
         ret = giTop50Show.SetSingleData(1,"01")#계좌 상품(항상01)
@@ -275,11 +302,26 @@ class indiWindow(QMainWindow):
     def handle_auto_sell(self):
         self.auto_sell = True
         jongmok_code = main_ui.textEdit_10.toPlainText()
+        jumun_suryang = main_ui.textEdit_11.toPlainText()
+        plus = main_ui.textEdit_7.toPlainText()
+        minus = main_ui.textEdit_6.toPlainText()
+
+        if jongmok_code == "":
+          QMessageBox.information(self,"필수 항목 부족" ,"종목명을 입력해주세요.")
+          return
+        if jumun_suryang == "":
+          QMessageBox.information(self,"필수 항목 부족" ,"주문 수량을 입력해주세요.")
+          return
+        if plus == "":
+          QMessageBox.information(self,"필수 항목 부족" ,"이익 수익률을 입력해주세요.")
+          return
+        if minus == "":
+          QMessageBox.information(self,"필수 항목 부족" ,"손실 제한률을 입력해주세요.")
+          return
          #매도 팝업
         QMessageBox.information(self,"매도예약" ,jongmok_code+" 매도 예약이 신청되었습니다.")
         #매도 텔레그렘 메세지
         bot.sendMessage(id,jongmok_code + " 매도 예약이 신청되었습니다. ")
-
     #예약 매도 신청
     def sell_stock_auto(self):
         self.flag = "매도"
@@ -397,10 +439,10 @@ class indiWindow(QMainWindow):
                 if differences:
                     print("새로운 체결 내역이 있습니다")
                     try:
-                        raw_time = giCtrl.GetMultiData(differences[0], 22)
+                        raw_time = giCtrl.GetMultiData(differences[0]-1, 22)
                         structured_time = time.strptime(raw_time, "%H%M%S")
                         formatted_time = time.strftime("%H:%M:%S", structured_time)
-                        send_message = formatted_time + "분에 " + str(giCtrl.GetMultiData(differences[0], 0)) +"가 체결됐습니다."
+                        send_message = formatted_time + "분에 " + str(giCtrl.GetMultiData(differences[0]-1, 0)) +"가 체결됐습니다."
                         print(send_message)
                         bot.sendMessage(id,send_message)
                     except :
@@ -462,6 +504,7 @@ class indiWindow(QMainWindow):
                     bot.sendMessage(id,buy_text)
                 except Exception as e:
                     print(e)
+                    QMessageBox.information(self,'매수 불가',"매수 주문 실패")
             else :
                 try:
                     print("===========매도 response==============")
@@ -474,6 +517,7 @@ class indiWindow(QMainWindow):
                     bot.sendMessage(id,sell_text)
                 except Exception as e:
                     print(e)
+                    QMessageBox.information(self,'매도 불가',"매도 주문 실패")
                   
         
 if __name__ == "__main__":
